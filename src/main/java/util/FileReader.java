@@ -1,13 +1,17 @@
 package util;
 
+import com.sun.deploy.util.StringUtils;
 import org.w3c.dom.*;
 
 import javax.swing.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -175,6 +179,72 @@ public class FileReader {
             e.printStackTrace();
         }
         return landmarks;
+    }
+
+    public static void findFilesInBounds() {
+        short longitudePosition = 2;
+        short latitudePosition = 3;
+        double latMin = 30.8491;
+        double latMax = 31.4093;
+        double lonMin = 121.0222;
+        double lonMax = 121.877;
+
+        List<String> fileNames = new ArrayList<String>();
+        AtomicInteger count = new AtomicInteger();
+
+        try {
+            try (Stream<Path> paths = Files.walk(Paths.get(FileReader.class.getClassLoader().getResource("alltaxi").getPath()))) {
+                paths.filter(Files::isRegularFile)
+                        .forEach(name -> {
+                            BufferedReader reader;
+                            InputStream stream = FileReader.class.getClassLoader().getResourceAsStream("alltaxi/" + name.getFileName().toString());
+                            reader = new BufferedReader(new InputStreamReader(stream));
+                            String line = null;
+                            try {
+                                line = reader.readLine();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            int index = 0;
+                            if (line!=null) {
+                                fileNames.add(name.getFileName().toString());
+                            }
+                            while (line != null) {
+                                String[] landMarkText = line.split(",");
+                                if (landMarkText.length > 2) {
+                                    if (latMin <= Double.valueOf(landMarkText[latitudePosition])
+                                            && Double.valueOf(landMarkText[latitudePosition]) <= latMax
+                                            && lonMin <= Double.valueOf(landMarkText[longitudePosition])
+                                            && Double.valueOf(landMarkText[longitudePosition]) <= lonMax
+                                    ) {
+                                        index++;
+                                    } else {
+                                        System.out.println("not in bounds" + name.getFileName().toString());
+                                        count.getAndIncrement();
+                                        fileNames.remove(name.getFileName().toString());
+                                        break;
+                                    }
+                                }
+                                // read next line
+                                try {
+                                    line = reader.readLine();
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            try {
+                                reader.close();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        });
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        System.out.println(count);
+        System.out.println(4316 - count.intValue());
+        System.out.println("file names: " + StringUtils.join(fileNames, "\n\r"));
     }
 
     public static boolean writeWkt(String wktfile, HashMap<Long, Landmark> taxiLandmarks) {
