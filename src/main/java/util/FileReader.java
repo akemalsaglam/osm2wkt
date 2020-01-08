@@ -219,7 +219,6 @@ public class FileReader {
                                     ) {
                                         index++;
                                     } else {
-                                        System.out.println("not in bounds" + name.getFileName().toString());
                                         count.getAndIncrement();
                                         fileNames.remove(name.getFileName().toString());
                                         break;
@@ -242,9 +241,11 @@ public class FileReader {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        System.out.println(count);
-        System.out.println(4316 - count.intValue());
-        System.out.println("file names: " + StringUtils.join(fileNames, "\n\r"));
+
+        int totalFileCount = 4316;
+        System.out.println("Total file count: " + totalFileCount);
+        System.out.println("Available file count: " + (totalFileCount - count.intValue()));
+        System.out.println("File names: \n" + StringUtils.join(fileNames, "\n\r"));
     }
 
     public static boolean writeWkt(String wktfile, HashMap<Long, Landmark> taxiLandmarks) {
