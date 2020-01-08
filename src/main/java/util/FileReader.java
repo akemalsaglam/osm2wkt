@@ -8,6 +8,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -130,11 +132,11 @@ public class FileReader {
             Stream<Node> wayListNodeStream = IntStream.range(0, wayList.getLength()).mapToObj(wayList::item);
             wayListNodeStream.parallel().forEach(way -> {
                 Node wayNode = way;
-                if( wayNode.getNodeType() != Node.ELEMENT_NODE ) return;
-                Element wayElement = (Element)wayNode;
+                if (wayNode.getNodeType() != Node.ELEMENT_NODE) return;
+                Element wayElement = (Element) wayNode;
 
                 Attr idAttr = wayElement.getAttributeNode(XML_TAG_ID);
-                if(idAttr == null){
+                if (idAttr == null) {
                     System.out.println("missing attribute in street "
                             + wayNode.getNodeValue());
                     return;
@@ -145,26 +147,26 @@ public class FileReader {
 
                 // get landmarks for this street
                 NodeList ndList = wayNode.getChildNodes();
-                for( int t=0; t<ndList.getLength(); t++){
+                for (int t = 0; t < ndList.getLength(); t++) {
                     Node ndNode = ndList.item(t);
-                    if( ndNode.getNodeType() != Node.ELEMENT_NODE ) continue;
-                    if( ndNode.getNodeName() != XML_TAG_ND) continue;
-                    Element ndElement = (Element)ndNode;
+                    if (ndNode.getNodeType() != Node.ELEMENT_NODE) continue;
+                    if (ndNode.getNodeName() != XML_TAG_ND) continue;
+                    Element ndElement = (Element) ndNode;
 
                     Attr refAttr = ndElement.getAttributeNode(XML_TAG_REF);
-                    if(refAttr == null){
+                    if (refAttr == null) {
                         System.out.println("missing attribute in street landmark "
                                 + ndNode.getNodeValue());
-                    }else{
+                    } else {
                         streetLandmarks.add(Long.valueOf(refAttr.getValue()));
                     }
 
                 }
 
                 // if we found landmarks for this street add street
-                if(!streetLandmarks.isEmpty()){
+                if (!streetLandmarks.isEmpty()) {
                     streets.put(streetId, streetLandmarks);
-                }else{
+                } else {
                     System.out.println("found no landmark childs for street "
                             + wayNode.getNodeValue());
                 }
@@ -195,9 +197,11 @@ public class FileReader {
                 if(i+1 < s.size()) wktstream.append(WKT_TAG_MARKSEP1 + WKT_TAG_MARKSEP2);
             }*/
 
+            //xoffset : 2119242.773, yoffset: -439001.373
+            double xoffset = 2119242.773;
             for (int i = 0; i < taxiLandmarks.values().size(); i++) {
                 Landmark landmark = (Landmark) taxiLandmarks.values().toArray()[i];
-                wktstream.append(landmark.x + WKT_TAG_MARKADD + landmark.y);
+                wktstream.append((landmark.x + xoffset) + WKT_TAG_MARKADD + landmark.y);
                 if (i + 1 < taxiLandmarks.values().size()) wktstream.append(WKT_TAG_MARKSEP1 + WKT_TAG_MARKSEP2);
             }
             wktstream.append(WKT_TAG_END + WKT_TAG_BREAK);
@@ -251,5 +255,48 @@ public class FileReader {
 
         System.out.println("writing wkt file done");
         return true;
+    }
+
+    public static void readWkt() throws IOException, ExecutionException, InterruptedException {
+        InputStream stream = FileReader.class.getClassLoader().getResourceAsStream("map.osm_origin.wkt");
+        BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+        String line = reader.readLine();
+        List<Landmark> landmarks = new ArrayList<>();
+        while (line != null) {
+
+            String[] lineString = line.split("LINESTRING");
+            String values = lineString[1];
+            values = values.trim();
+            String coordinateText = values.substring(1, values.length() - 2);
+            String[] twoDimensionCoordinate = coordinateText.split(",");
+            Arrays.stream(twoDimensionCoordinate).forEach(coordinates -> {
+                coordinates = coordinates.trim();
+                String[] xy = coordinates.split(" ");
+                Landmark landmark = new Landmark();
+                landmark.setLongitude(Double.valueOf(xy[0]));
+                landmark.setLatitude(Double.valueOf(xy[1]));
+                landmarks.add(landmark);
+            });
+
+            line = reader.readLine();
+        }
+        reader.close();
+
+
+        Map<Double, Landmark> landmarkHypotenuse = new HashMap<>();
+
+        double selectedLon = 2162688.234;
+        double selectedLan = 32079.736;
+
+        landmarks.parallelStream().forEach(landmark -> {
+            if (landmark != null) {
+                landmarkHypotenuse.put(Math.hypot(selectedLon - landmark.getLongitude(), selectedLan - landmark.getLatitude()), landmark);
+            }
+        });
+
+
+        OptionalDouble key = landmarkHypotenuse.keySet().stream().mapToDouble(v -> v).min();
+        Landmark landmark = landmarkHypotenuse.get(key.getAsDouble());
+        System.out.println("suggested x:" + landmark.getLongitude() + ", y:" + landmark.getLatitude());
     }
 }
