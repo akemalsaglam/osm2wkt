@@ -26,8 +26,7 @@ public class Application {
         FileReader.writeWkt("Taxi_01.wkt",landmarkList);*/
 
 
-
-
+        //FileReader.findFilesInBounds();
 
         FileReader.readWkt();
 
